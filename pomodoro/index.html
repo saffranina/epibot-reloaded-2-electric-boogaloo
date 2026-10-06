@@ -175,6 +175,16 @@
     </form>
   </dialog>
 
+  <dialog id="doneDialog" class="done-dialog">
+    <img id="doneImg" alt="">
+    <h2 id="doneTitle">¡Pomodoro terminado!</h2>
+    <p id="doneText"></p>
+    <div class="done-actions">
+      <button type="button" id="doneGo" class="ctrl primary">Empezar pausa</button>
+      <button type="button" id="doneLater" class="link-btn danger">Ahora no</button>
+    </div>
+  </dialog>
+
   <dialog id="settings">
     <form method="dialog" class="settings-form">
       <h2>Ajustes</h2>
@@ -191,6 +201,7 @@
       <label>Pausa larga cada (pomodoros) <input type="number" name="every" min="2" max="10" inputmode="numeric"></label>
       <label class="check"><input type="checkbox" name="autoStart"> Empezar el siguiente automáticamente</label>
       <label class="check"><input type="checkbox" name="sound"> Sonido al empezar y terminar <button type="button" id="testSound" class="link-btn small-link">Probar</button></label>
+      <label class="check sub"><input type="checkbox" name="loud"> <span>Sonar aunque el iPhone esté en silencio<br><small>Pausa la música mientras suena</small></span></label>
       <label class="check"><input type="checkbox" name="keepAwake"> Mantener pantalla encendida</label>
       <button type="button" id="notifyBtn" class="link-btn">Activar notificaciones</button>
       <div class="dialog-actions">

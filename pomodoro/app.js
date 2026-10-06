@@ -1,6 +1,6 @@
 'use strict';
 
-const DEFAULTS = { focus: 25, short: 5, long: 15, every: 4, autoStart: false, sound: true, keepAwake: true, buddy: 'ambos' };
+const DEFAULTS = { focus: 25, short: 5, long: 15, every: 4, autoStart: false, sound: true, loud: true, keepAwake: true, buddy: 'ambos' };
 const LABELS = { focus: 'Enfoque', short: 'Pausa corta', long: 'Pausa larga' };
 const RING_LEN = 2 * Math.PI * 100;
 
@@ -9,7 +9,7 @@ const els = {
   time: $('#time'), status: $('#status'), ring: $('#ringFg'),
   start: $('#startBtn'), reset: $('#resetBtn'), skip: $('#skipBtn'),
   taskBtn: $('#taskBtn'), noteBtn: $('#noteBtn'), log: $('#log'),
-  tasksDialog: $('#tasksDialog'), noteDialog: $('#noteDialog'),
+  tasksDialog: $('#tasksDialog'), noteDialog: $('#noteDialog'), doneDialog: $('#doneDialog'),
   count: $('#statCount'), minutes: $('#statMinutes'), streak: $('#statStreak'), dots: $('#cycleDots'),
   statsBtn: $('#statsBtn'), statCards: $('#statCards'), statsDialog: $('#statsDialog'),
   settings: $('#settings'), settingsBtn: $('#settingsBtn'),
@@ -680,6 +680,30 @@ document.querySelectorAll('.range button').forEach((b) => b.addEventListener('cl
   renderChart();
 }));
 
+/* ---------- Aviso en pantalla al terminar ---------- */
+
+function showDoneDialog(finished, next, title) {
+  const who = settings.buddy;
+  const img = finished === 'focus'
+    ? (who === 'ambos' ? pick(['duo-beso', 'duo-corazon']) : `${who}-guino`)
+    : (who === 'ambos' ? 'duo-leen' : `${who}-parado`);
+  $('#doneImg').src = `img/${img}.webp`;
+  $('#doneTitle').textContent = title;
+  $('#doneText').textContent = finished === 'focus'
+    ? `Ahora: ${LABELS[next].toLowerCase()} de ${settings[next]} min ☕`
+    : `A concentrarse otra vez: ${settings.focus} min${currentTask() ? ` en "${currentTask().title}"` : ''}`;
+  $('#doneGo').textContent = settings.autoStart ? 'OK' : (finished === 'focus' ? 'Empezar pausa' : 'Empezar enfoque');
+  $('#doneLater').hidden = settings.autoStart;
+  if (!els.doneDialog.open) els.doneDialog.showModal();
+}
+$('#doneGo').addEventListener('click', () => {
+  stopAlarm();
+  els.doneDialog.close();
+  if (!isRunning()) start();
+});
+$('#doneLater').addEventListener('click', () => { stopAlarm(); els.doneDialog.close(); });
+els.doneDialog.addEventListener('close', stopAlarm);
+
 /* ---------- Avisos: sonido, vibración y notificación ---------- */
 
 let audioCtx = null;
@@ -689,13 +713,22 @@ let audioCtx = null;
 function unlockAudio(force = false) {
   if (!settings.sound && !force) return;
   try {
-    // "transient": sonido corto tipo aviso; baja un momento la música en vez de cortarla.
-    if (navigator.audioSession) navigator.audioSession.type = 'transient';
-    audioCtx ||= new (window.AudioContext || window.webkitAudioContext)();
+    // En iPhone el audio web se calla con el interruptor de silencio. "playback" lo hace
+    // sonar igual (pero pausa la música); "transient" respeta el silencio y solo la baja.
+    if (navigator.audioSession) navigator.audioSession.type = settings.loud ? 'playback' : 'transient';
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      // Reproducir un instante de silencio dentro del toque termina de "desbloquear" iOS.
+      const src = audioCtx.createBufferSource();
+      src.buffer = audioCtx.createBuffer(1, 1, 22050);
+      src.connect(audioCtx.destination);
+      src.start(0);
+    }
     if (audioCtx.state !== 'running') audioCtx.resume().catch(() => {});
   } catch { audioCtx = null; }
 }
-document.addEventListener('pointerdown', unlockAudio, { passive: true });
+// iOS solo acepta audio en un toque completo (al levantar el dedo), no al apoyarlo.
+['touchend', 'click'].forEach((ev) => document.addEventListener(ev, () => unlockAudio(), { passive: true, capture: true }));
 
 // Una campanita: tono base con un par de armónicos que se apagan suave.
 function bell(freq, at, { dur = 1.4, vol = 0.32 } = {}) {
@@ -740,11 +773,27 @@ function play(name, force = false) {
   else audioCtx.resume().then(go).catch(() => {});
 }
 
+let alarmTimer = null;
+
+function stopAlarm() {
+  clearInterval(alarmTimer);
+  alarmTimer = null;
+}
+
 function alertUser(finished, next) {
-  play(finished === 'focus' ? 'finEnfoque' : 'finPausa');
+  const sound = finished === 'focus' ? 'finEnfoque' : 'finPausa';
+  play(sound);
+  // Repetir la campanita (hasta 4 veces) mientras nadie toque el aviso.
+  stopAlarm();
+  let rings = 1;
+  alarmTimer = setInterval(() => {
+    if (++rings > 4 || !els.doneDialog.open) { stopAlarm(); return; }
+    play(sound);
+  }, 5000);
   if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
   const title = finished === 'focus' ? '¡Pomodoro terminado!' : 'Fin de la pausa';
   const body = `Sigue: ${LABELS[next]}`;
+  showDoneDialog(finished, next, title);
   if ('Notification' in window && Notification.permission === 'granted' && document.hidden) {
     navigator.serviceWorker?.ready
       .then((reg) => reg.showNotification(title, { body, icon: 'icons/icon-192.png', tag: 'foco' }))
@@ -798,7 +847,7 @@ els.settings.addEventListener('close', () => {
   const num = (k, min, max) => Math.min(max, Math.max(min, parseInt(f.elements[k].value, 10) || DEFAULTS[k]));
   settings = {
     focus: num('focus', 1, 120), short: num('short', 1, 60), long: num('long', 1, 60), every: num('every', 2, 10),
-    autoStart: f.elements.autoStart.checked, sound: f.elements.sound.checked, keepAwake: f.elements.keepAwake.checked,
+    autoStart: f.elements.autoStart.checked, sound: f.elements.sound.checked, loud: f.elements.loud.checked, keepAwake: f.elements.keepAwake.checked,
     buddy: f.elements.buddy.value,
   };
   save('settings', settings);
