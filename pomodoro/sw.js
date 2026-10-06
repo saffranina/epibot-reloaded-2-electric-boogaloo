@@ -1,5 +1,5 @@
 // Service worker: guarda la app en caché para que funcione sin conexión.
-const CACHE = 'foco-v1';
+const CACHE = 'foco-v2';
 const ASSETS = [
   './',
   './index.html',
@@ -9,6 +9,25 @@ const ASSETS = [
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/apple-touch-icon.png',
+  './fonts/fredoka.woff2',
+  './fonts/cherry-bomb-one.woff2',
+  './img/duo-beso.webp',
+  './img/duo-cafe.webp',
+  './img/duo-corazon.webp',
+  './img/duo-escriben.webp',
+  './img/duo-leen.webp',
+  './img/rubio-parado.webp',
+  './img/rubio-camina.webp',
+  './img/rubio-sentado.webp',
+  './img/rubio-guino.webp',
+  './img/rubio-dormido.webp',
+  './img/rubio-enojado.webp',
+  './img/rojo-parado.webp',
+  './img/rojo-camina.webp',
+  './img/rojo-sentado.webp',
+  './img/rojo-guino.webp',
+  './img/rojo-dormido.webp',
+  './img/rojo-enojado.webp',
 ];
 
 self.addEventListener('install', (event) => {

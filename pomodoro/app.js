@@ -1,6 +1,6 @@
 'use strict';
 
-const DEFAULTS = { focus: 25, short: 5, long: 15, every: 4, autoStart: false, sound: true, keepAwake: true };
+const DEFAULTS = { focus: 25, short: 5, long: 15, every: 4, autoStart: false, sound: true, keepAwake: true, buddy: 'ambos' };
 const LABELS = { focus: 'Enfoque', short: 'Pausa corta', long: 'Pausa larga' };
 const RING_LEN = 2 * Math.PI * 100;
 
@@ -12,6 +12,7 @@ const els = {
   count: $('#statCount'), minutes: $('#statMinutes'), cycle: $('#statCycle'),
   settings: $('#settings'), settingsBtn: $('#settingsBtn'),
   notifyBtn: $('#notifyBtn'), clearBtn: $('#clearBtn'), installHint: $('#installHint'),
+  stage: $('#stage'), bubble: $('#bubble'),
 };
 
 // localStorage puede fallar (modo privado), así que todo pasa por estos helpers.
@@ -53,6 +54,7 @@ function render() {
   document.body.dataset.mode = state.mode;
   document.querySelectorAll('.mode-btn').forEach((b) => b.classList.toggle('active', b.dataset.mode === state.mode));
   renderStats();
+  renderScene();
 }
 
 function renderStats() {
@@ -124,12 +126,130 @@ function finish() {
   const next = finished === 'focus' ? (state.done % settings.every === 0 ? 'long' : 'short') : 'focus';
   alertUser(finished, next);
   setMode(next, settings.autoStart);
+  if (finished === 'focus') react('celebra');
 }
 
 // Saltar no cuenta como pomodoro completado.
 function skip() {
   setMode(state.mode === 'focus' ? 'short' : 'focus');
 }
+
+/* ---------- Personajes ---------- */
+
+// Cada escena dice qué dibujo usar con "los dos" (duo) o con uno solo (single),
+// cómo se mueve y qué pueden decir.
+const SCENES = {
+  listo:    { duo: ['parado', 'parado'], single: 'parado', anim: 'breathe',
+              says: ['¿Empezamos?', 'Un pomodoro a la vez ✨', '¿En qué trabajamos hoy?', 'Libreta lista ✍️'] },
+  enfoque:  { duo: ['duo-leen', 'duo-escriben'], single: 'camina', anim: 'walk', duoAnim: 'breathe',
+              says: ['Concentración total', 'Shh… estamos trabajando', '¡Tú puedes!', 'Paso a paso', 'Nada de redes, eh 👀'] },
+  pausado:  { duo: ['sentado', 'sentado'], single: 'sentado', anim: 'breathe',
+              says: ['Aquí esperamos', '¿Seguimos cuando quieras?', 'Pausa técnica'] },
+  corta:    { duo: ['duo-cafe'], single: 'guino', anim: 'breathe',
+              says: ['Un cafecito ☕', 'Estira las piernas', 'Toma agua 💧', 'Respira hondo'] },
+  larga:    { duo: ['dormido', 'dormido'], single: 'dormido', anim: 'sleep',
+              says: ['Zzz…', 'Descanso bien merecido', 'Cierra los ojos un ratito'] },
+  celebra:  { duo: ['duo-beso', 'duo-corazon'], single: 'guino', anim: 'hop', hearts: true,
+              says: ['¡Lo lograste! 💛', '¡Bien hecho!', '¡Un pomodoro más!', 'Orgullo total ❤️'] },
+  enojado:  { duo: ['enojado', 'enojado'], single: 'enojado', anim: 'shake',
+              says: ['¡Oye!', '¿¡Otra vez desde cero!?', 'Hmph.', '¡Íbamos tan bien!'] },
+};
+const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
+let reaction = null;     // escena pasajera (celebra / enojado)
+let reactionTimer = null;
+let currentKey = '';
+
+function sceneName() {
+  if (reaction) return reaction;
+  if (state.mode === 'short') return 'corta';
+  if (state.mode === 'long') return 'larga';
+  if (isRunning()) return 'enfoque';
+  return remainingNow() < duration(state.mode) ? 'pausado' : 'listo';
+}
+
+function sceneImages(scene) {
+  const who = settings.buddy;
+  if (who !== 'ambos') return [`${who}-${scene.single}`];
+  // Las escenas de dos personas alternan entre pomodoros; las de a uno van lado a lado.
+  if (scene.duo.length === 2 && scene.duo[0] === scene.duo[1]) return [`rubio-${scene.duo[0]}`, `rojo-${scene.duo[0]}`];
+  return [scene.duo[state.done % scene.duo.length]];
+}
+
+function renderScene() {
+  const name = sceneName();
+  const scene = SCENES[name];
+  const imgs = sceneImages(scene);
+  const key = `${name}|${imgs.join()}`;
+  if (key === currentKey) return;
+  const changedScene = !currentKey.startsWith(`${name}|`);
+  currentKey = key;
+
+  const stage = els.stage;
+  stage.querySelectorAll('.fig, .zzz').forEach((n) => n.remove());
+  imgs.forEach((src) => {
+    const img = document.createElement('img');
+    img.className = 'fig';
+    img.src = `img/${src}.webp`;
+    img.alt = '';
+    img.decoding = 'async';
+    stage.append(img);
+  });
+  const anim = imgs.length === 1 && settings.buddy === 'ambos' && scene.duoAnim ? scene.duoAnim : scene.anim;
+  stage.className = `stage ${anim}${imgs.length > 1 ? ' pair' : ''}`;
+  if (anim !== 'shake' && anim !== 'hop') {
+    void stage.offsetWidth; // reinicia la animación de entrada
+    stage.classList.add('enter');
+  }
+  if (anim === 'sleep') {
+    const z = document.createElement('div');
+    z.className = 'zzz';
+    z.innerHTML = '<span>z</span><span>z</span><span>Z</span>';
+    stage.append(z);
+  }
+  if (scene.hearts) hearts();
+  if (changedScene) say(pick(scene.says));
+}
+
+function say(text) {
+  els.bubble.textContent = '';
+  void els.bubble.offsetWidth;
+  els.bubble.textContent = text;
+}
+
+function hearts() {
+  let box = els.stage.querySelector('.hearts');
+  if (!box) { box = document.createElement('div'); box.className = 'hearts'; els.stage.append(box); }
+  for (let i = 0; i < 7; i++) {
+    const h = document.createElement('span');
+    h.textContent = pick(['♥', '❤', '💛']);
+    h.style.left = `${15 + Math.random() * 70}%`;
+    h.style.animationDelay = `${i * 0.18}s`;
+    box.append(h);
+    setTimeout(() => h.remove(), 2600 + i * 180);
+  }
+}
+
+// Escena pasajera: se muestra unos segundos y vuelve a la normal.
+function react(name) {
+  clearTimeout(reactionTimer);
+  reaction = name;
+  currentKey = '';
+  renderScene();
+  reactionTimer = setTimeout(() => { reaction = null; render(); }, name === 'celebra' ? 6000 : 2600);
+}
+
+// Tocar a los personajes: saltito y una frase nueva.
+els.stage.addEventListener('click', () => {
+  if (reaction) return;
+  const stage = els.stage;
+  const base = stage.className.replace(/\s*\b(hop|enter)\b/g, '');
+  stage.className = base;
+  void stage.offsetWidth;
+  stage.classList.add('hop');
+  setTimeout(() => { stage.className = base; }, 520);
+  say(pick(SCENES[sceneName()].says));
+});
 
 /* ---------- Avisos: sonido, vibración y notificación ---------- */
 
@@ -219,6 +339,7 @@ els.settings.addEventListener('close', () => {
   settings = {
     focus: num('focus', 1, 120), short: num('short', 1, 60), long: num('long', 1, 60), every: num('every', 2, 10),
     autoStart: f.elements.autoStart.checked, sound: f.elements.sound.checked, keepAwake: f.elements.keepAwake.checked,
+    buddy: f.elements.buddy.value,
   };
   save('settings', settings);
   // Si no está corriendo, aplicar la nueva duración de inmediato.
@@ -229,8 +350,8 @@ els.settings.addEventListener('close', () => {
 /* ---------- Eventos ---------- */
 
 els.start.addEventListener('click', () => (isRunning() ? pause() : start()));
-els.reset.addEventListener('click', () => setMode(state.mode));
-els.skip.addEventListener('click', skip);
+els.reset.addEventListener('click', () => { setMode(state.mode); react('enojado'); });
+els.skip.addEventListener('click', () => { skip(); react('enojado'); });
 els.settingsBtn.addEventListener('click', openSettings);
 els.notifyBtn.addEventListener('click', requestNotifications);
 els.clearBtn.addEventListener('click', () => {
@@ -267,6 +388,12 @@ els.installHint.hidden = standalone || !isIOS;
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
+
+// Precargar los dibujos para que cambien sin parpadeo.
+['parado', 'camina', 'sentado', 'guino', 'dormido', 'enojado'].forEach((n) => {
+  ['rubio', 'rojo'].forEach((w) => { new Image().src = `img/${w}-${n}.webp`; });
+});
+['leen', 'escriben', 'cafe', 'beso', 'corazon'].forEach((n) => { new Image().src = `img/duo-${n}.webp`; });
 
 if (isRunning()) {
   if (remainingNow() <= 0) finish(); else runTick();

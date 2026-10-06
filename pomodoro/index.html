@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Foco</title>
   <meta name="description" content="Temporizador pomodoro para concentrarte en el trabajo.">
-  <meta name="theme-color" content="#1b1d24">
+  <meta name="theme-color" content="#121729">
+  <link rel="preload" href="fonts/fredoka.woff2" as="font" type="font/woff2" crossorigin>
   <!-- iOS: abrir como app a pantalla completa -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
@@ -19,7 +20,7 @@
 <body data-mode="focus">
   <main class="app">
     <header class="top">
-      <h1>Foco</h1>
+      <h1>Foco<small>♥</small></h1>
       <button id="settingsBtn" class="icon-btn" aria-label="Ajustes">
         <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2-1.6-2-3.4-2.4 1a7.4 7.4 0 0 0-1.7-1L15 3.5h-4L10.7 6a7.4 7.4 0 0 0-1.7 1l-2.4-1-2 3.4L4.6 11a7.6 7.6 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a7.4 7.4 0 0 0 1.7 1l.3 2.5h4l.3-2.5a7.4 7.4 0 0 0 1.7-1l2.4 1 2-3.4zM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z"/></svg>
       </button>
@@ -40,6 +41,10 @@
         <div id="time" class="time" aria-live="polite">25:00</div>
         <div id="status" class="status">Listo para empezar</div>
       </div>
+    </section>
+
+    <section id="stage" class="stage" aria-live="polite">
+      <div id="bubble" class="bubble"></div>
     </section>
 
     <input id="task" class="task" type="text" maxlength="80" placeholder="¿En qué vas a trabajar?" autocomplete="off">
@@ -66,6 +71,13 @@
   <dialog id="settings">
     <form method="dialog" class="settings-form">
       <h2>Ajustes</h2>
+      <label>Compañía
+        <select name="buddy">
+          <option value="ambos">Los dos</option>
+          <option value="rubio">El rubio</option>
+          <option value="rojo">El pelirrojo</option>
+        </select>
+      </label>
       <label>Enfoque (min) <input type="number" name="focus" min="1" max="120" inputmode="numeric"></label>
       <label>Pausa corta (min) <input type="number" name="short" min="1" max="60" inputmode="numeric"></label>
       <label>Pausa larga (min) <input type="number" name="long" min="1" max="60" inputmode="numeric"></label>
