@@ -21,9 +21,14 @@
   <main class="app">
     <header class="top">
       <h1>Foco<small>♥</small></h1>
+      <div class="top-actions">
+      <button id="statsBtn" class="icon-btn" aria-label="Estadísticas">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M5 20a1.5 1.5 0 0 1-1.5-1.5v-6a1.5 1.5 0 0 1 3 0v6A1.5 1.5 0 0 1 5 20zm7 0a1.5 1.5 0 0 1-1.5-1.5v-13a1.5 1.5 0 0 1 3 0v13A1.5 1.5 0 0 1 12 20zm7 0a1.5 1.5 0 0 1-1.5-1.5v-9a1.5 1.5 0 0 1 3 0v9A1.5 1.5 0 0 1 19 20z"/></svg>
+      </button>
       <button id="settingsBtn" class="icon-btn" aria-label="Ajustes">
         <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2-1.6-2-3.4-2.4 1a7.4 7.4 0 0 0-1.7-1L15 3.5h-4L10.7 6a7.4 7.4 0 0 0-1.7 1l-2.4-1-2 3.4L4.6 11a7.6 7.6 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a7.4 7.4 0 0 0 1.7 1l.3 2.5h4l.3-2.5a7.4 7.4 0 0 0 1.7-1l2.4 1 2-3.4zM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z"/></svg>
       </button>
+      </div>
     </header>
 
     <nav class="modes" role="tablist">
@@ -40,6 +45,7 @@
       <div class="time-wrap">
         <div id="time" class="time" aria-live="polite">25:00</div>
         <div id="status" class="status">Listo para empezar</div>
+        <div id="cycleDots" class="dots" aria-label="Ciclo"></div>
       </div>
     </section>
 
@@ -55,10 +61,10 @@
       <button id="skipBtn" class="ctrl secondary" aria-label="Saltar">⏭</button>
     </div>
 
-    <section class="stats">
+    <section id="statCards" class="stats" role="button" tabindex="0" aria-label="Ver estadísticas">
       <div><span id="statCount">0</span><small>pomodoros hoy</small></div>
       <div><span id="statMinutes">0</span><small>min de foco hoy</small></div>
-      <div><span id="statCycle">1/4</span><small>ciclo</small></div>
+      <div><span id="statStreak">0</span><small>🔥 días de racha</small></div>
     </section>
 
     <ul id="log" class="log"></ul>
@@ -67,6 +73,55 @@
       Para instalar en iPhone: toca <b>Compartir</b> <span aria-hidden="true">⎋</span> y luego <b>Agregar a pantalla de inicio</b>.
     </p>
   </main>
+
+  <dialog id="statsDialog" class="stats-dialog">
+    <div class="sheet">
+      <header class="sheet-top">
+        <h2>Tus estadísticas</h2>
+        <form method="dialog"><button class="icon-btn" aria-label="Cerrar">✕</button></form>
+      </header>
+
+      <section class="streak-card">
+        <div class="streak-text">
+          <div class="streak-label">Racha actual</div>
+          <div class="streak-value"><span id="streakNow">0</span> <small id="streakUnit">días</small> <span class="fire">🔥</span></div>
+          <div id="streakMsg" class="streak-msg"></div>
+          <div class="streak-best">Mejor racha: <b id="streakBest">0</b></div>
+        </div>
+        <img id="streakImg" class="streak-img" alt="">
+      </section>
+
+      <ol id="weekStrip" class="week-strip" aria-label="Últimos 7 días"></ol>
+
+      <section class="tiles">
+        <div class="tile"><small>Esta semana</small><b id="tWeek">0 h</b><span id="tWeekP">0 pomodoros</span></div>
+        <div class="tile"><small>Este mes</small><b id="tMonth">0 h</b><span id="tMonthP">0 pomodoros</span></div>
+        <div class="tile"><small>Mejor día</small><b id="tBest">—</b><span id="tBestD"></span></div>
+        <div class="tile"><small>Total</small><b id="tTotal">0 h</b><span id="tTotalP">0 pomodoros</span></div>
+      </section>
+
+      <section class="chart-card">
+        <div class="chart-head">
+          <h3>Minutos de foco por día</h3>
+          <div class="range" role="tablist">
+            <button data-range="7" class="active">7 días</button>
+            <button data-range="30">30 días</button>
+          </div>
+        </div>
+        <div id="chart" class="chart"></div>
+        <div id="tip" class="tip" hidden></div>
+        <details class="table-view">
+          <summary>Ver como tabla</summary>
+          <table><thead><tr><th>Día</th><th>Pomodoros</th><th>Minutos</th></tr></thead><tbody id="chartTable"></tbody></table>
+        </details>
+      </section>
+
+      <section class="chart-card">
+        <h3>Lo que más trabajaste <small>(últimos 30 días)</small></h3>
+        <ul id="topTasks" class="top-tasks"></ul>
+      </section>
+    </div>
+  </dialog>
 
   <dialog id="settings">
     <form method="dialog" class="settings-form">
