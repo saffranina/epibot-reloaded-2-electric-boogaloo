@@ -6,7 +6,10 @@ Temporizador pomodoro instalable en el teléfono (PWA). No necesita Mac ni App S
 
 - Enfoque / pausa corta / pausa larga (25 / 5 / 15 min, configurable)
 - Pausa larga automática cada N pomodoros
-- Campo "¿En qué vas a trabajar?" e historial de los pomodoros de hoy
+- Lista de tareas en orden de importancia, con pomodoros estimados y hechos (🍅🍅◯)
+- Libreta de distracciones: anota lo que se te cruza sin parar el temporizador y revísalo en la pausa
+- Estadísticas: racha de días, totales, minutos por día y tareas más trabajadas
+- Sonido de campanita al empezar y al terminar
 - Sonido al terminar, pantalla encendida mientras corre y notificaciones (donde el sistema lo permita)
 - Compañía: los dos chibis (o solo el rubio o el pelirrojo) cambian según lo que haces:
   caminan o leen mientras te concentras, toman café en la pausa corta, duermen en la
