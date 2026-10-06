@@ -1,5 +1,5 @@
 // Service worker: guarda la app en caché para que funcione sin conexión.
-const CACHE = 'foco-v6';
+const CACHE = 'foco-v7';
 const ASSETS = [
   './',
   './index.html',
@@ -54,6 +54,19 @@ self.addEventListener('fetch', (event) => {
       })
       .catch(() => caches.match(event.request, { ignoreSearch: true }))
   );
+});
+
+// Notificación enviada por el servidor de Foco (push-server/).
+self.addEventListener('push', (event) => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; } catch { data = { body: event.data && event.data.text() }; }
+  event.waitUntil(self.registration.showNotification(data.title || 'Foco', {
+    body: data.body || '¡Se acabó el tiempo!',
+    icon: 'icons/icon-192.png',
+    badge: 'icons/icon-192.png',
+    tag: 'foco',
+    renotify: true,
+  }));
 });
 
 self.addEventListener('notificationclick', (event) => {

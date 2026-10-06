@@ -1,0 +1,35 @@
+name: Publicar servidor de notificaciones (Cloudflare)
+
+on:
+  push:
+    branches: [main]
+    paths: ['push-server/**', '.github/workflows/push-server-deploy.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      HAS_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN != '' && secrets.CLOUDFLARE_ACCOUNT_ID != '' }}
+    steps:
+      - name: Falta configurar Cloudflare
+        if: env.HAS_TOKEN != 'true'
+        run: echo "::notice::Agrega los secretos CLOUDFLARE_API_TOKEN y CLOUDFLARE_ACCOUNT_ID para publicar el servidor."
+      - uses: actions/checkout@v4
+        if: env.HAS_TOKEN == 'true'
+      - id: deploy
+        if: env.HAS_TOKEN == 'true'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: push-server
+          wranglerVersion: '4'
+      - name: Dirección del servidor
+        if: env.HAS_TOKEN == 'true'
+        run: |
+          echo "PUSH_URL=${{ steps.deploy.outputs.deployment-url }}"
+          echo "Servidor publicado en: ${{ steps.deploy.outputs.deployment-url }}" >> "$GITHUB_STEP_SUMMARY"

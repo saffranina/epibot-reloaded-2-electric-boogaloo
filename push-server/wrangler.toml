@@ -1,0 +1,15 @@
+name = "foco-push"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+
+[vars]
+ALLOWED_ORIGINS = "https://saffranina.github.io"
+
+[[durable_objects.bindings]]
+name = "TIMER"
+class_name = "Timer"
+
+# Durable Objects con SQLite: disponibles en el plan gratuito.
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Timer"]
