@@ -1,5 +1,5 @@
 // Service worker: guarda la app en caché para que funcione sin conexión.
-const CACHE = 'foco-v4';
+const CACHE = 'foco-v5';
 const ASSETS = [
   './',
   './index.html',

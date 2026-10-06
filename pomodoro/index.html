@@ -53,7 +53,13 @@
       <div id="bubble" class="bubble"></div>
     </section>
 
-    <input id="task" class="task" type="text" maxlength="80" placeholder="¿En qué vas a trabajar?" autocomplete="off">
+    <div class="task-row">
+      <button id="taskBtn" class="task-btn">
+        <span id="taskTitle" class="task-title">¿En qué vas a trabajar?</span>
+        <span id="taskTomatoes" class="tomatoes" aria-hidden="true"></span>
+      </button>
+      <button id="noteBtn" class="note-btn" aria-label="Anotar una distracción">✎<b id="noteBadge" hidden>0</b></button>
+    </div>
 
     <div class="controls">
       <button id="resetBtn" class="ctrl secondary" aria-label="Reiniciar">↺</button>
@@ -121,6 +127,52 @@
         <ul id="topTasks" class="top-tasks"></ul>
       </section>
     </div>
+  </dialog>
+
+  <dialog id="tasksDialog" class="stats-dialog">
+    <div class="sheet">
+      <header class="sheet-top">
+        <h2>Tareas</h2>
+        <form method="dialog"><button class="icon-btn" aria-label="Cerrar">✕</button></form>
+      </header>
+      <p class="sheet-hint">Ordénalas por importancia: la de arriba va primero. Toca una para trabajar en ella.</p>
+
+      <form id="addTask" class="add-task" autocomplete="off">
+        <input id="newTask" type="text" maxlength="80" placeholder="Nueva tarea…" enterkeyhint="done">
+        <div class="est" aria-label="Pomodoros estimados">
+          <button type="button" data-est="-1" aria-label="Menos">−</button>
+          <span><b id="newEst">1</b> 🍅</span>
+          <button type="button" data-est="1" aria-label="Más">+</button>
+        </div>
+        <button class="ctrl primary small">Agregar</button>
+      </form>
+
+      <ol id="taskList" class="task-list"></ol>
+
+      <details id="doneBox" class="done-box" hidden>
+        <summary>Completadas (<span id="doneCount">0</span>)</summary>
+        <ul id="doneList" class="task-list done"></ul>
+        <button type="button" id="clearDone" class="link-btn danger">Borrar completadas</button>
+      </details>
+
+      <section class="notes-box">
+        <h3>📝 Distracciones anotadas</h3>
+        <p class="sheet-hint">Lo que se te cruzó durante un pomodoro. Atiéndelo en la pausa.</p>
+        <ul id="noteList" class="note-list"></ul>
+      </section>
+    </div>
+  </dialog>
+
+  <dialog id="noteDialog" class="note-dialog">
+    <form id="noteForm" method="dialog" class="settings-form">
+      <h2>Anotar distracción</h2>
+      <p class="sheet-hint">Escríbela y vuelve a tu tarea: el temporizador sigue corriendo.</p>
+      <input id="noteText" type="text" maxlength="120" placeholder="Ej.: contestar el correo de Ana" enterkeyhint="done" autocomplete="off">
+      <div class="dialog-actions">
+        <button type="button" id="noteCancel" class="link-btn danger">Cancelar</button>
+        <button value="save" class="ctrl primary small">Anotar</button>
+      </div>
+    </form>
   </dialog>
 
   <dialog id="settings">

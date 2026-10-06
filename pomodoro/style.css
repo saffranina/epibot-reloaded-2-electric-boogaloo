@@ -50,6 +50,7 @@ body {
 }
 
 button, input, select { font-family: inherit; }
+button:focus:not(:focus-visible) { outline: none; }
 
 .app {
   max-width: 440px;
@@ -169,13 +170,32 @@ button, input, select { font-family: inherit; }
 @keyframes float { from { opacity: 1; transform: translateY(0) scale(.6); } to { opacity: 0; transform: translateY(-140px) scale(1.2); } }
 
 /* ---------- Tarea y controles ---------- */
-.task {
-  width: 100%; background: var(--surface); color: var(--text); border: 1px solid #ffffff10;
-  border-radius: var(--radius); padding: 14px 16px; font-size: 16px; text-align: center;
-  -webkit-user-select: text; user-select: text;
+.task-row { display: flex; gap: 10px; }
+.task-btn {
+  flex: 1; min-width: 0; display: flex; align-items: center; justify-content: center; gap: 10px;
+  background: var(--surface); color: var(--text); border: 1px solid #ffffff10;
+  border-radius: var(--radius); padding: 13px 16px; font-size: 16px;
 }
-.task::placeholder { color: var(--muted); }
-.task:focus { outline: 2px solid var(--accent); }
+.task-btn.empty .task-title { color: var(--muted); }
+.task-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.note-btn {
+  position: relative; flex: none; width: 52px; border-radius: var(--radius);
+  background: var(--surface); color: var(--gold); border: 1px solid #ffffff10; font-size: 20px;
+}
+.note-btn b {
+  position: absolute; top: -6px; right: -6px; min-width: 20px; height: 20px; padding: 0 5px;
+  border-radius: 10px; background: var(--accent); color: var(--on-accent); font-size: 12px; line-height: 20px;
+}
+
+/* Tomates: hechos llenos, pendientes como contorno. */
+.tomatoes { display: inline-flex; gap: 3px; flex: none; font-size: 13px; line-height: 1; }
+.tomatoes i { font-style: normal; }
+.tomatoes { align-items: center; }
+.tomatoes i.todo {
+  font-size: 0; width: 11px; height: 11px; margin: 0 1px; border-radius: 50%;
+  border: 1.5px solid var(--muted); opacity: .8;
+}
+.tomatoes i.extra { filter: drop-shadow(0 0 3px var(--accent)); }
 
 .controls { display: flex; justify-content: center; align-items: center; gap: 18px; }
 .ctrl { border: 0; font-weight: 600; cursor: pointer; }
@@ -333,6 +353,61 @@ dialog::backdrop { background: rgba(8, 10, 22, .7); }
 .top-tasks li span:nth-child(2) { color: var(--muted); font-size: 13px; }
 .top-tasks .meter { grid-column: 1 / -1; height: 8px; border-radius: 4px; background: var(--bg); overflow: hidden; }
 .top-tasks .meter i { display: block; height: 100%; border-radius: 0 4px 4px 0; background: var(--bar); }
+
+/* ---------- Tareas ---------- */
+.sheet-hint { margin: -4px 0 0; color: var(--muted); font-size: 14px; }
+.add-task {
+  display: grid; grid-template-columns: 1fr auto; gap: 10px;
+  background: var(--surface); border: 1px solid #ffffff10; border-radius: var(--radius); padding: 12px;
+}
+.add-task input, .note-dialog input {
+  grid-column: 1 / -1; width: 100%; background: var(--bg); color: var(--text);
+  border: 1px solid #ffffff14; border-radius: 14px; padding: 12px 14px; font-size: 16px;
+  -webkit-user-select: text; user-select: text;
+}
+.add-task input:focus, .note-dialog input:focus { outline: 2px solid var(--accent); }
+.est { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 15px; }
+.est b { color: var(--text); font-weight: 600; }
+.est button, .row-actions button {
+  width: 36px; height: 36px; border-radius: 50%; border: 1px solid #ffffff14;
+  background: var(--bg); color: var(--gold); font-size: 18px; font-weight: 600;
+}
+.task-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.task-item {
+  background: var(--surface); border: 1px solid #ffffff10; border-radius: 18px; padding: 12px 14px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.task-item.current { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold), 0 6px 18px rgba(232, 191, 98, .15); }
+.task-main { display: flex; align-items: center; gap: 10px; background: none; border: 0; color: inherit; padding: 0; text-align: left; font-size: 16px; width: 100%; }
+.task-main .num {
+  flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--surface-2); color: var(--gold); font-size: 13px; font-weight: 600;
+}
+.task-item.current .num { background: var(--gold); color: #1b2242; }
+.task-main .name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.task-item .now-label { font-size: 12.5px; color: var(--gold); margin: -4px 0 0 36px; }
+.row-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-left: 36px; }
+.row-actions .sep { flex: 1; }
+.row-actions .est-label { font-size: 13.5px; color: var(--muted); margin: 0 2px; }
+.row-actions button.ok { width: auto; padding: 0 14px; border-radius: 999px; background: var(--gold); color: #1b2242; border: 0; font-size: 15px; }
+.row-actions button.del { color: var(--muted); }
+.task-list.done .task-item { opacity: .7; }
+.task-list.done .name { text-decoration: line-through; }
+.task-list .empty { color: var(--muted); font-size: 14.5px; text-align: center; padding: 18px 8px; background: var(--surface); border-radius: 18px; }
+.done-box summary { color: var(--muted); font-size: 14.5px; cursor: pointer; margin-bottom: 8px; }
+.done-box .link-btn { margin-top: 8px; }
+
+.notes-box { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+.note-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.note-list li {
+  display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid #ffffff10;
+  border-radius: 14px; padding: 10px 12px; font-size: 15px;
+}
+.note-list li span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.note-list li small { color: var(--muted); font-size: 12.5px; flex: none; }
+.note-list li button { flex: none; background: none; border: 0; color: var(--gold); font-size: 18px; padding: 2px 4px; }
+.note-list .empty { justify-content: center; color: var(--muted); font-size: 14px; }
+.note-dialog { background: var(--surface); color: var(--text); }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }

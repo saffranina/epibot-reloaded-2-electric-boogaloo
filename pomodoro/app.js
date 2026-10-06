@@ -8,7 +8,8 @@ const $ = (sel) => document.querySelector(sel);
 const els = {
   time: $('#time'), status: $('#status'), ring: $('#ringFg'),
   start: $('#startBtn'), reset: $('#resetBtn'), skip: $('#skipBtn'),
-  task: $('#task'), log: $('#log'),
+  taskBtn: $('#taskBtn'), noteBtn: $('#noteBtn'), log: $('#log'),
+  tasksDialog: $('#tasksDialog'), noteDialog: $('#noteDialog'),
   count: $('#statCount'), minutes: $('#statMinutes'), streak: $('#statStreak'), dots: $('#cycleDots'),
   statsBtn: $('#statsBtn'), statCards: $('#statCards'), statsDialog: $('#statsDialog'),
   settings: $('#settings'), settingsBtn: $('#settingsBtn'),
@@ -34,7 +35,18 @@ let history = load('history', {});
 // El estado guarda la hora de fin (no un contador), así el tiempo sigue siendo
 // correcto aunque iOS congele la app en segundo plano.
 let state = load('state', null) || { mode: 'focus', endsAt: null, remaining: settings.focus * 60, done: 0 };
-els.task.value = load('task', '');
+
+// Lista de tareas en orden de importancia (la primera es la más importante).
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+let tasks = load('tasks', null);
+if (!tasks) {
+  // Migrar la tarea suelta de versiones anteriores.
+  const old = String(load('task', '')).trim();
+  tasks = old ? [{ id: uid(), title: old, est: 1, done: 0, completed: false }] : [];
+  save('tasks', tasks);
+}
+let currentId = load('currentTask', null);
+let notes = load('notes', []); // distracciones anotadas: { id, text, time }
 
 let tick = null;
 let wakeLock = null;
@@ -58,6 +70,7 @@ function render() {
   document.body.dataset.mode = state.mode;
   document.querySelectorAll('.mode-btn').forEach((b) => b.classList.toggle('active', b.dataset.mode === state.mode));
   renderStats();
+  renderTaskBtn();
   renderScene();
 }
 
@@ -123,12 +136,15 @@ function runTick() {
 function finish() {
   clearInterval(tick);
   const finished = state.mode;
+  let reachedEstimate = false;
   if (finished === 'focus') {
     state.done += 1;
+    const t = currentTask();
+    if (t) { t.done += 1; reachedEstimate = t.done === t.est; saveTasks(); }
     const d = new Date();
     const day = todayKey();
     (history[day] ||= []).push({
-      mode: 'focus', minutes: settings.focus, task: els.task.value.trim(),
+      mode: 'focus', minutes: settings.focus, task: currentTask()?.title || '', taskId: currentTask()?.id,
       time: d.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }),
     });
     // Conservar poco más de un año para las estadísticas.
@@ -143,6 +159,7 @@ function finish() {
     // Primer pomodoro del día que alarga la racha: lo festejan.
     const n = streakNow();
     if (focusOf(todayKey()).length === 1 && n >= 2) say(`¡Racha de ${n} días! 🔥`);
+    else if (reachedEstimate) say('¡Llegaste a lo estimado! ¿Ya está lista? ✓');
   }
 }
 
@@ -225,7 +242,10 @@ function renderScene() {
     stage.append(z);
   }
   if (scene.hearts) hearts();
-  if (changedScene) say(pick(scene.says));
+  if (changedScene) {
+    say((name === 'corta' || name === 'larga') && notes.length
+      ? `Anotaste ${plural(notes.length, 'cosa', 'cosas')} 📝 ¿Las revisamos?` : pick(scene.says));
+  }
 }
 
 function say(text) {
@@ -266,6 +286,182 @@ els.stage.addEventListener('click', () => {
   stage.classList.add('hop');
   setTimeout(() => { stage.className = base; }, 520);
   say(pick(SCENES[sceneName()].says));
+});
+
+/* ---------- Tareas ---------- */
+
+const saveTasks = () => { save('tasks', tasks); save('currentTask', currentId); };
+const pending = () => tasks.filter((t) => !t.completed);
+
+// La tarea elegida; si no hay, la más importante sin terminar.
+function currentTask() {
+  let t = tasks.find((x) => x.id === currentId && !x.completed);
+  if (!t) { t = pending()[0] || null; currentId = t ? t.id : null; }
+  return t;
+}
+
+function tomatoes(t) {
+  const html = [];
+  const shown = Math.min(Math.max(t.est, t.done), 10);
+  for (let i = 0; i < shown; i++) {
+    html.push(`<i class="${i >= t.done ? 'todo' : i >= t.est ? 'extra' : ''}">🍅</i>`);
+  }
+  return html.join('');
+}
+
+function renderTaskBtn() {
+  const t = currentTask();
+  els.taskBtn.classList.toggle('empty', !t);
+  $('#taskTitle').textContent = t ? t.title : '¿En qué vas a trabajar?';
+  $('#taskTomatoes').innerHTML = t ? tomatoes(t) : '';
+  const badge = $('#noteBadge');
+  badge.hidden = !notes.length;
+  badge.textContent = notes.length;
+}
+
+function el(tag, cls, text) {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text !== undefined) n.textContent = text;
+  return n;
+}
+
+function actionBtn(label, aria, fn, cls = '') {
+  const b = el('button', cls, label);
+  b.type = 'button';
+  b.setAttribute('aria-label', aria);
+  b.addEventListener('click', (e) => { e.stopPropagation(); fn(); saveTasks(); renderTasks(); renderTaskBtn(); });
+  return b;
+}
+
+function renderTasks() {
+  const cur = currentTask();
+  const list = $('#taskList');
+  const open = pending();
+  if (!open.length) {
+    list.replaceChildren(el('li', 'empty', 'Sin tareas pendientes. Agrega la primera arriba ✨'));
+  } else {
+    list.replaceChildren(...open.map((t, i) => {
+      const li = el('li', `task-item${t === cur ? ' current' : ''}`);
+      const main = el('button', 'task-main');
+      main.type = 'button';
+      const tom = el('span', 'tomatoes');
+      tom.innerHTML = tomatoes(t);
+      main.append(el('span', 'num', i + 1), el('span', 'name', t.title), tom);
+      main.addEventListener('click', () => { currentId = t.id; saveTasks(); renderTasks(); renderTaskBtn(); });
+      li.append(main);
+      if (t === cur) {
+        li.append(el('div', 'now-label', `Trabajando en esta · ${t.done} de ${plural(t.est, 'pomodoro', 'pomodoros')}`));
+        const idx = tasks.indexOf(t);
+        const swap = (dir) => {
+          // Mover respecto a la tarea pendiente vecina (las completadas no cuentan).
+          const other = open[i + dir];
+          if (!other) return;
+          const j = tasks.indexOf(other);
+          [tasks[idx], tasks[j]] = [tasks[j], tasks[idx]];
+        };
+        const row = el('div', 'row-actions');
+        row.append(
+          actionBtn('↑', 'Subir prioridad', () => swap(-1)),
+          actionBtn('↓', 'Bajar prioridad', () => swap(1)),
+          actionBtn('−', 'Menos pomodoros', () => { t.est = Math.max(1, t.est - 1); }),
+          el('span', 'est-label', `${t.est} 🍅`),
+          actionBtn('+', 'Más pomodoros', () => { t.est = Math.min(12, t.est + 1); }),
+          el('span', 'sep'),
+          actionBtn('🗑', 'Borrar tarea', () => {
+            if (confirm(`¿Borrar "${t.title}"?`)) tasks.splice(tasks.indexOf(t), 1);
+          }, 'del'),
+          actionBtn('✓ Lista', 'Marcar como lista', () => {
+            t.completed = true;
+            say('¡Tarea lista! 💛');
+          }, 'ok'),
+        );
+        li.append(row);
+      }
+      return li;
+    }));
+  }
+
+  const done = tasks.filter((t) => t.completed);
+  $('#doneBox').hidden = !done.length;
+  $('#doneCount').textContent = done.length;
+  $('#doneList').replaceChildren(...done.map((t) => {
+    const li = el('li', 'task-item');
+    const main = el('div', 'task-main');
+    const tom = el('span', 'tomatoes');
+    tom.innerHTML = tomatoes(t);
+    main.append(el('span', 'num', '✓'), el('span', 'name', t.title), tom,
+      actionBtn('↺', 'Volver a pendientes', () => { t.completed = false; }));
+    li.append(main);
+    return li;
+  }));
+
+  const nl = $('#noteList');
+  if (!notes.length) {
+    nl.replaceChildren(el('li', 'empty', 'Nada anotado. ¡Buena concentración! ✨'));
+  } else {
+    nl.replaceChildren(...notes.map((n) => {
+      const li = el('li');
+      const doneBtn = actionBtn('✓', 'Ya la atendí', () => {
+        notes = notes.filter((x) => x !== n);
+        save('notes', notes);
+      });
+      li.append(el('span', '', n.text), el('small', '', n.time), doneBtn);
+      return li;
+    }));
+  }
+}
+
+function openTasks() {
+  renderTasks();
+  els.tasksDialog.showModal();
+  els.tasksDialog.scrollTop = 0;
+}
+els.taskBtn.addEventListener('click', openTasks);
+els.tasksDialog.addEventListener('close', render);
+
+let newEst = 1;
+document.querySelectorAll('.add-task .est button').forEach((b) => b.addEventListener('click', () => {
+  newEst = Math.min(12, Math.max(1, newEst + Number(b.dataset.est)));
+  $('#newEst').textContent = newEst;
+}));
+$('#addTask').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const input = $('#newTask');
+  const title = input.value.trim();
+  if (!title) { input.focus(); return; }
+  tasks.push({ id: uid(), title, est: newEst, done: 0, completed: false });
+  if (!currentTask()) currentId = tasks[tasks.length - 1].id;
+  input.value = '';
+  newEst = 1;
+  $('#newEst').textContent = 1;
+  saveTasks();
+  renderTasks();
+  renderTaskBtn();
+});
+$('#clearDone').addEventListener('click', () => {
+  if (!confirm('¿Borrar las tareas completadas?')) return;
+  tasks = tasks.filter((t) => !t.completed);
+  saveTasks();
+  renderTasks();
+});
+
+/* ---------- Distracciones ---------- */
+
+els.noteBtn.addEventListener('click', () => {
+  $('#noteText').value = '';
+  els.noteDialog.showModal();
+  $('#noteText').focus();
+});
+$('#noteCancel').addEventListener('click', () => els.noteDialog.close());
+els.noteDialog.addEventListener('close', () => {
+  const text = $('#noteText').value.trim();
+  if (els.noteDialog.returnValue !== 'save' || !text) return;
+  els.noteDialog.returnValue = '';
+  notes.push({ id: uid(), text, time: new Date().toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }) });
+  save('notes', notes);
+  renderTaskBtn();
+  say(isRunning() && state.mode === 'focus' ? 'Anotado 📝 ¡De vuelta a la tarea!' : 'Anotado 📝');
 });
 
 /* ---------- Estadísticas y racha ---------- */
@@ -627,8 +823,6 @@ els.clearBtn.addEventListener('click', () => {
   persist();
   render();
 });
-els.task.addEventListener('input', () => save('task', els.task.value));
-els.task.addEventListener('keydown', (e) => { if (e.key === 'Enter') els.task.blur(); });
 document.querySelectorAll('.mode-btn').forEach((b) => b.addEventListener('click', () => {
   if (b.dataset.mode === state.mode) return;
   if (isRunning() && !confirm('Hay un temporizador en marcha. ¿Cambiar de modo?')) return;
