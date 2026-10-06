@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Foco</title>
+  <meta name="description" content="Temporizador pomodoro para concentrarte en el trabajo.">
+  <meta name="theme-color" content="#1b1d24">
+  <!-- iOS: abrir como app a pantalla completa -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Foco">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="icon" href="icons/icon-192.png" type="image/png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body data-mode="focus">
+  <main class="app">
+    <header class="top">
+      <h1>Foco</h1>
+      <button id="settingsBtn" class="icon-btn" aria-label="Ajustes">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2-1.6-2-3.4-2.4 1a7.4 7.4 0 0 0-1.7-1L15 3.5h-4L10.7 6a7.4 7.4 0 0 0-1.7 1l-2.4-1-2 3.4L4.6 11a7.6 7.6 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a7.4 7.4 0 0 0 1.7 1l.3 2.5h4l.3-2.5a7.4 7.4 0 0 0 1.7-1l2.4 1 2-3.4zM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z"/></svg>
+      </button>
+    </header>
+
+    <nav class="modes" role="tablist">
+      <button role="tab" data-mode="focus" class="mode-btn">Enfoque</button>
+      <button role="tab" data-mode="short" class="mode-btn">Pausa corta</button>
+      <button role="tab" data-mode="long" class="mode-btn">Pausa larga</button>
+    </nav>
+
+    <section class="timer">
+      <svg class="ring" viewBox="0 0 220 220" aria-hidden="true">
+        <circle class="ring-bg" cx="110" cy="110" r="100"/>
+        <circle id="ringFg" class="ring-fg" cx="110" cy="110" r="100"/>
+      </svg>
+      <div class="time-wrap">
+        <div id="time" class="time" aria-live="polite">25:00</div>
+        <div id="status" class="status">Listo para empezar</div>
+      </div>
+    </section>
+
+    <input id="task" class="task" type="text" maxlength="80" placeholder="¿En qué vas a trabajar?" autocomplete="off">
+
+    <div class="controls">
+      <button id="resetBtn" class="ctrl secondary" aria-label="Reiniciar">↺</button>
+      <button id="startBtn" class="ctrl primary">Empezar</button>
+      <button id="skipBtn" class="ctrl secondary" aria-label="Saltar">⏭</button>
+    </div>
+
+    <section class="stats">
+      <div><span id="statCount">0</span><small>pomodoros hoy</small></div>
+      <div><span id="statMinutes">0</span><small>min de foco hoy</small></div>
+      <div><span id="statCycle">1/4</span><small>ciclo</small></div>
+    </section>
+
+    <ul id="log" class="log"></ul>
+
+    <p id="installHint" class="hint" hidden>
+      Para instalar en iPhone: toca <b>Compartir</b> <span aria-hidden="true">⎋</span> y luego <b>Agregar a pantalla de inicio</b>.
+    </p>
+  </main>
+
+  <dialog id="settings">
+    <form method="dialog" class="settings-form">
+      <h2>Ajustes</h2>
+      <label>Enfoque (min) <input type="number" name="focus" min="1" max="120" inputmode="numeric"></label>
+      <label>Pausa corta (min) <input type="number" name="short" min="1" max="60" inputmode="numeric"></label>
+      <label>Pausa larga (min) <input type="number" name="long" min="1" max="60" inputmode="numeric"></label>
+      <label>Pausa larga cada (pomodoros) <input type="number" name="every" min="2" max="10" inputmode="numeric"></label>
+      <label class="check"><input type="checkbox" name="autoStart"> Empezar el siguiente automáticamente</label>
+      <label class="check"><input type="checkbox" name="sound"> Sonido al terminar</label>
+      <label class="check"><input type="checkbox" name="keepAwake"> Mantener pantalla encendida</label>
+      <button type="button" id="notifyBtn" class="link-btn">Activar notificaciones</button>
+      <div class="dialog-actions">
+        <button type="button" id="clearBtn" class="link-btn danger">Borrar historial de hoy</button>
+        <button value="save" class="ctrl primary small">Guardar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="app.js"></script>
+</body>
+</html>
