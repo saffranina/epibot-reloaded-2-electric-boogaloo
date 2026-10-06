@@ -9,7 +9,8 @@ const els = {
   time: $('#time'), status: $('#status'), ring: $('#ringFg'),
   start: $('#startBtn'), reset: $('#resetBtn'), skip: $('#skipBtn'),
   task: $('#task'), log: $('#log'),
-  count: $('#statCount'), minutes: $('#statMinutes'), cycle: $('#statCycle'),
+  count: $('#statCount'), minutes: $('#statMinutes'), streak: $('#statStreak'), dots: $('#cycleDots'),
+  statsBtn: $('#statsBtn'), statCards: $('#statCards'), statsDialog: $('#statsDialog'),
   settings: $('#settings'), settingsBtn: $('#settingsBtn'),
   notifyBtn: $('#notifyBtn'), clearBtn: $('#clearBtn'), installHint: $('#installHint'),
   stage: $('#stage'), bubble: $('#bubble'),
@@ -23,7 +24,10 @@ function save(key, value) {
   try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* sin almacenamiento */ }
 }
 
-const todayKey = () => new Date().toLocaleDateString('sv'); // YYYY-MM-DD
+const dayKey = (d) => d.toLocaleDateString('sv'); // YYYY-MM-DD en hora local
+const todayKey = () => dayKey(new Date());
+const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+const parseKey = (k) => { const [y, m, d] = k.split('-').map(Number); return new Date(y, m - 1, d); };
 
 let settings = { ...DEFAULTS, ...load('settings', {}) };
 let history = load('history', {});
@@ -62,7 +66,14 @@ function renderStats() {
   const focus = today.filter((e) => e.mode === 'focus');
   els.count.textContent = focus.length;
   els.minutes.textContent = focus.reduce((sum, e) => sum + e.minutes, 0);
-  els.cycle.textContent = `${(state.done % settings.every) + 1}/${settings.every}`;
+  els.streak.textContent = streakNow();
+  const pos = state.done % settings.every;
+  els.dots.replaceChildren(...Array.from({ length: settings.every }, (_, i) => {
+    const dot = document.createElement('i');
+    if (i < pos) dot.className = 'on';
+    else if (i === pos && state.mode === 'focus') dot.className = 'now';
+    return dot;
+  }));
   els.log.replaceChildren(...focus.slice(-5).reverse().map((e) => {
     const li = document.createElement('li');
     const b = document.createElement('b');
@@ -119,14 +130,19 @@ function finish() {
       mode: 'focus', minutes: settings.focus, task: els.task.value.trim(),
       time: d.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }),
     });
-    // Conservar sólo los últimos 30 días.
-    history = Object.fromEntries(Object.entries(history).sort().slice(-30));
+    // Conservar poco más de un año para las estadísticas.
+    history = Object.fromEntries(Object.entries(history).sort().slice(-400));
     save('history', history);
   }
   const next = finished === 'focus' ? (state.done % settings.every === 0 ? 'long' : 'short') : 'focus';
   alertUser(finished, next);
   setMode(next, settings.autoStart);
-  if (finished === 'focus') react('celebra');
+  if (finished === 'focus') {
+    react('celebra');
+    // Primer pomodoro del día que alarga la racha: lo festejan.
+    const n = streakNow();
+    if (focusOf(todayKey()).length === 1 && n >= 2) say(`¡Racha de ${n} días! 🔥`);
+  }
 }
 
 // Saltar no cuenta como pomodoro completado.
@@ -250,6 +266,222 @@ els.stage.addEventListener('click', () => {
   setTimeout(() => { stage.className = base; }, 520);
   say(pick(SCENES[sceneName()].says));
 });
+
+/* ---------- Estadísticas y racha ---------- */
+
+const focusOf = (key) => (history[key] || []).filter((e) => e.mode === 'focus');
+const minutesOf = (key) => focusOf(key).reduce((sum, e) => sum + e.minutes, 0);
+
+// Días seguidos con al menos un pomodoro. Si hoy aún no hay, la racha sigue viva hasta ayer.
+function streakNow() {
+  let d = new Date();
+  if (!focusOf(dayKey(d)).length) d = addDays(d, -1);
+  let n = 0;
+  while (focusOf(dayKey(d)).length) { n++; d = addDays(d, -1); }
+  return n;
+}
+
+function streakBest() {
+  const days = Object.keys(history).filter((k) => focusOf(k).length).sort();
+  let best = 0, run = 0, prev = null;
+  for (const k of days) {
+    run = prev && dayKey(addDays(parseKey(prev), 1)) === k ? run + 1 : 1;
+    best = Math.max(best, run);
+    prev = k;
+  }
+  return best;
+}
+
+function fmtDur(min) {
+  if (min < 60) return `${min} min`;
+  const h = Math.floor(min / 60), m = min % 60;
+  return m ? `${h} h ${m} min` : `${h} h`;
+}
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+const shortDate = (d) => d.toLocaleDateString('es', { weekday: 'short', day: 'numeric', month: 'short' }).replace(/[.,]/g, '');
+
+// Suma pomodoros y minutos de los días [desde, hoy].
+function totalsSince(from) {
+  let p = 0, m = 0;
+  for (let d = new Date(from); dayKey(d) <= todayKey(); d = addDays(d, 1)) {
+    p += focusOf(dayKey(d)).length;
+    m += minutesOf(dayKey(d));
+  }
+  return { p, m };
+}
+
+let chartRange = 7;
+
+function renderStatsPage() {
+  const now = new Date();
+  const streak = streakNow();
+  const doneToday = focusOf(todayKey()).length > 0;
+  $('#streakNow').textContent = streak;
+  $('#streakUnit').textContent = streak === 1 ? 'día' : 'días';
+  $('#streakBest').textContent = plural(Math.max(streakBest(), streak), 'día', 'días');
+  $('#streakMsg').textContent = streak === 0 ? 'Empieza hoy una racha nueva ✨'
+    : doneToday ? '¡Hoy ya cuenta! 💛' : '¡Haz un pomodoro hoy para no perderla!';
+  const who = settings.buddy;
+  $('#streakImg').src = `img/${streak > 0 ? (who === 'ambos' ? 'duo-corazon' : `${who}-guino`) : (who === 'ambos' ? 'duo-cafe' : `${who}-sentado`)}.webp`;
+
+  // Últimos 7 días como puntitos.
+  $('#weekStrip').replaceChildren(...Array.from({ length: 7 }, (_, i) => {
+    const d = addDays(now, i - 6);
+    const li = document.createElement('li');
+    const n = focusOf(dayKey(d)).length;
+    li.className = `${n ? 'done' : ''} ${i === 6 ? 'today' : ''}`;
+    const dot = document.createElement('i');
+    dot.textContent = n ? (n > 9 ? '9+' : n) : '';
+    li.append(dot, d.toLocaleDateString('es', { weekday: 'narrow' }));
+    li.setAttribute('aria-label', `${shortDate(d)}: ${plural(n, 'pomodoro', 'pomodoros')}`);
+    return li;
+  }));
+
+  // Tarjetas: semana (desde el lunes), mes, mejor día, total.
+  const monday = addDays(now, -((now.getDay() + 6) % 7));
+  const week = totalsSince(monday);
+  const month = totalsSince(new Date(now.getFullYear(), now.getMonth(), 1));
+  $('#tWeek').textContent = fmtDur(week.m);
+  $('#tWeekP').textContent = plural(week.p, 'pomodoro', 'pomodoros');
+  $('#tMonth').textContent = fmtDur(month.m);
+  $('#tMonthP').textContent = plural(month.p, 'pomodoro', 'pomodoros');
+  let best = null, totalP = 0, totalM = 0;
+  for (const k of Object.keys(history)) {
+    const m = minutesOf(k);
+    totalP += focusOf(k).length; totalM += m;
+    if (m && (!best || m > best.m)) best = { k, m };
+  }
+  $('#tBest').textContent = best ? fmtDur(best.m) : '—';
+  $('#tBestD').textContent = best ? shortDate(parseKey(best.k)) : 'Aún nada';
+  $('#tTotal').textContent = fmtDur(totalM);
+  $('#tTotalP').textContent = plural(totalP, 'pomodoro', 'pomodoros');
+
+  renderChart();
+  renderTopTasks();
+}
+
+function niceStep(max) {
+  return [5, 10, 15, 25, 30, 50, 60, 100, 120, 150, 200, 250, 300, 500].find((s) => max / s <= 4) || 600;
+}
+
+function renderChart() {
+  const chart = $('#chart');
+  const tip = $('#tip');
+  tip.hidden = true;
+  const now = new Date();
+  const days = Array.from({ length: chartRange }, (_, i) => {
+    const d = addDays(now, i - chartRange + 1);
+    const k = dayKey(d);
+    return { d, k, p: focusOf(k).length, m: minutesOf(k), today: i === chartRange - 1 };
+  });
+
+  // Tabla accesible (más reciente primero).
+  $('#chartTable').replaceChildren(...days.slice().reverse().map((x) => {
+    const tr = document.createElement('tr');
+    for (const v of [shortDate(x.d), x.p, x.m]) { const td = document.createElement('td'); td.textContent = v; tr.append(td); }
+    return tr;
+  }));
+
+  const max = Math.max(...days.map((x) => x.m));
+  if (!max) {
+    chart.innerHTML = `<div class="chart-empty">Todavía no hay pomodoros en ${chartRange === 7 ? 'esta semana' : 'estos 30 días'}.<br>¡El primero cuenta! 🍅</div>`;
+    return;
+  }
+
+  const W = 340, H = 180, L = 30, R = 4, T = 18, B = 22;
+  const step = niceStep(max), top = Math.ceil(max / step) * step;
+  const pw = W - L - R, ph = H - T - B;
+  const band = pw / chartRange;
+  const bw = Math.min(24, chartRange === 7 ? band * 0.55 : band - 2);
+  const y = (v) => T + ph - (v / top) * ph;
+  const maxIdx = days.findIndex((x) => x.m === max);
+  let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Minutos de foco por día, últimos ${chartRange} días">`;
+  for (let v = 0; v <= top; v += step) {
+    svg += `<line class="grid" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/>`;
+    svg += `<text class="tick" x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${v}</text>`;
+  }
+  days.forEach((x, i) => {
+    const cx = L + band * i + band / 2;
+    const h = (x.m / top) * ph, r = Math.min(4, h);
+    const x0 = cx - bw / 2, yb = T + ph;
+    svg += `<g class="col" data-i="${i}">`;
+    if (x.m) {
+      // Extremo de datos redondeado (4px), cuadrado en la base.
+      svg += `<path class="bar${x.today ? ' now' : ''}" d="M${x0},${yb} V${yb - h + r} Q${x0},${yb - h} ${x0 + r},${yb - h} H${x0 + bw - r} Q${x0 + bw},${yb - h} ${x0 + bw},${yb - h + r} V${yb} Z"/>`;
+    }
+    if (i === maxIdx) svg += `<text class="val" x="${cx}" y="${yb - h - 5}" text-anchor="middle">${x.m}</text>`;
+    const label = chartRange === 7 ? x.d.toLocaleDateString('es', { weekday: 'short' }).replace('.', '')
+      : (x.today || (x.d.getDate() % 5 === 0 && i < chartRange - 3) ? String(x.d.getDate()) : '');
+    if (label) svg += `<text class="tick" x="${cx}" y="${H - 6}" text-anchor="middle">${label}</text>`;
+    svg += `<rect class="hit" x="${L + band * i}" y="${T}" width="${band}" height="${ph + B}"/></g>`;
+  });
+  svg += '</svg>';
+  chart.innerHTML = svg;
+
+  const show = (g) => {
+    chart.querySelectorAll('.col.sel').forEach((c) => c.classList.remove('sel'));
+    g.classList.add('sel');
+    const x = days[Number(g.dataset.i)];
+    tip.innerHTML = `<b>${shortDate(x.d)}</b> · ${plural(x.p, 'pomodoro', 'pomodoros')} · ${x.m} min`;
+    tip.hidden = false;
+    const card = chart.parentElement.getBoundingClientRect();
+    const bar = (g.querySelector('.bar') || g.querySelector('.hit')).getBoundingClientRect();
+    const half = tip.offsetWidth / 2;
+    const left = Math.min(card.width - half - 6, Math.max(half + 6, bar.left + bar.width / 2 - card.left));
+    tip.style.left = `${left}px`;
+    tip.style.top = `${Math.max(bar.top - card.top - 8, 34)}px`;
+  };
+  chart.querySelectorAll('.col').forEach((g) => {
+    g.addEventListener('pointerenter', () => show(g));
+    g.addEventListener('click', () => show(g));
+  });
+  chart.querySelector('svg').addEventListener('pointerleave', (e) => {
+    if (e.pointerType === 'mouse') { tip.hidden = true; chart.querySelectorAll('.col.sel').forEach((c) => c.classList.remove('sel')); }
+  });
+}
+
+function renderTopTasks() {
+  const groups = new Map();
+  for (let i = 0; i < 30; i++) {
+    for (const e of focusOf(dayKey(addDays(new Date(), -i)))) {
+      const name = e.task || 'Sin título';
+      const key = name.toLowerCase();
+      const g = groups.get(key) || { name, p: 0, m: 0 };
+      g.p++; g.m += e.minutes;
+      groups.set(key, g);
+    }
+  }
+  const top = [...groups.values()].sort((a, b) => b.m - a.m).slice(0, 5);
+  const list = $('#topTasks');
+  if (!top.length) {
+    list.innerHTML = '<li class="chart-empty">Escribe en qué trabajas y aquí verás tus temas favoritos.</li>';
+    return;
+  }
+  list.replaceChildren(...top.map((g) => {
+    const li = document.createElement('li');
+    const name = document.createElement('span'); name.textContent = g.name;
+    const val = document.createElement('span'); val.textContent = `${fmtDur(g.m)} · ${g.p} 🍅`;
+    const meter = document.createElement('div'); meter.className = 'meter';
+    const fill = document.createElement('i'); fill.style.width = `${(g.m / top[0].m) * 100}%`;
+    meter.append(fill);
+    li.append(name, val, meter);
+    return li;
+  }));
+}
+
+function openStats() {
+  renderStatsPage();
+  els.statsDialog.showModal();
+  els.statsDialog.scrollTop = 0;
+}
+els.statsBtn.addEventListener('click', openStats);
+els.statCards.addEventListener('click', openStats);
+els.statCards.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openStats(); } });
+document.querySelectorAll('.range button').forEach((b) => b.addEventListener('click', () => {
+  chartRange = Number(b.dataset.range);
+  document.querySelectorAll('.range button').forEach((x) => x.classList.toggle('active', x === b));
+  renderChart();
+}));
 
 /* ---------- Avisos: sonido, vibración y notificación ---------- */
 
