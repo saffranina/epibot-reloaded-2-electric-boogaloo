@@ -246,7 +246,7 @@ dialog::backdrop { background: rgba(8, 10, 22, .7); }
 }
 .settings-form select { width: auto; text-align: left; padding: 8px 10px; }
 .settings-form .check { justify-content: flex-start; }
-.settings-form input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--accent); }
+.settings-form input[type="checkbox"] { flex: none; width: 20px; height: 20px; accent-color: var(--accent); }
 .dialog-actions { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; }
 .link-btn { background: none; border: 0; color: var(--gold); font-size: 15px; padding: 4px 0; text-align: left; }
 .link-btn.danger { color: var(--muted); }
@@ -408,6 +408,20 @@ dialog::backdrop { background: rgba(8, 10, 22, .7); }
 .note-list li button { flex: none; background: none; border: 0; color: var(--gold); font-size: 18px; padding: 2px 4px; }
 .note-list .empty { justify-content: center; color: var(--muted); font-size: 14px; }
 .note-dialog { background: var(--surface); color: var(--text); }
+
+/* ---------- Aviso al terminar ---------- */
+.done-dialog {
+  background: var(--surface); color: var(--text); border: 1px solid #ffffff18; border-radius: 28px;
+  width: min(90vw, 360px); padding: 22px 20px 18px; text-align: center;
+  box-shadow: 0 0 0 4px var(--glow), 0 20px 50px #000a;
+}
+.done-dialog[open] { animation: pop .45s cubic-bezier(.3, 1.6, .5, 1) both; }
+.done-dialog::backdrop { background: rgba(8, 10, 22, .78); }
+.done-dialog img { height: 170px; max-width: 100%; object-fit: contain; filter: drop-shadow(0 6px 10px #0006); }
+.done-dialog h2 { margin: 8px 0 4px; font-family: "Cherry Bomb One", "Fredoka", sans-serif; font-weight: 400; font-size: 28px; color: var(--gold); }
+.done-dialog p { margin: 0 0 16px; color: var(--muted); font-size: 16px; }
+.done-actions { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.settings-form .check.sub small { color: var(--muted); font-size: 13px; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
