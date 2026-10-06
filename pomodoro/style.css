@@ -230,6 +230,7 @@ dialog::backdrop { background: rgba(8, 10, 22, .7); }
 .dialog-actions { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; }
 .link-btn { background: none; border: 0; color: var(--gold); font-size: 15px; padding: 4px 0; text-align: left; }
 .link-btn.danger { color: var(--muted); }
+.link-btn.small-link { margin-left: auto; font-size: 14px; padding: 4px 2px; }
 
 /* ---------- Ciclo (puntitos dentro del reloj) ---------- */
 .top-actions { display: flex; gap: 10px; }

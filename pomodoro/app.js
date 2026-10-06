@@ -85,8 +85,9 @@ function renderStats() {
   }));
 }
 
-function start() {
-  unlockAudio();
+function start({ quiet = false } = {}) {
+  // Al encadenar automáticamente, ya sonó el aviso de fin: no se suma el de inicio.
+  if (quiet) unlockAudio(); else play('inicio');
   state.endsAt = Date.now() + remainingNow() * 1000;
   persist();
   runTick();
@@ -109,7 +110,7 @@ function setMode(mode, autoStart = false) {
   state.endsAt = null;
   state.remaining = duration(mode);
   persist();
-  if (autoStart) start(); else { releaseWakeLock(); render(); }
+  if (autoStart) start({ quiet: true }); else { releaseWakeLock(); render(); }
 }
 
 function runTick() {
@@ -486,34 +487,65 @@ document.querySelectorAll('.range button').forEach((b) => b.addEventListener('cl
 /* ---------- Avisos: sonido, vibración y notificación ---------- */
 
 let audioCtx = null;
-// iOS sólo permite audio después de un toque del usuario, así que se "desbloquea" al empezar.
-function unlockAudio() {
-  if (!settings.sound) return;
+
+// iOS sólo deja sonar audio después de un toque, y lo vuelve a pausar cuando la app
+// pasa a segundo plano. Por eso se "despierta" en cada toque sobre la pantalla.
+function unlockAudio(force = false) {
+  if (!settings.sound && !force) return;
   try {
+    // "transient": sonido corto tipo aviso; baja un momento la música en vez de cortarla.
+    if (navigator.audioSession) navigator.audioSession.type = 'transient';
     audioCtx ||= new (window.AudioContext || window.webkitAudioContext)();
-    if (audioCtx.state === 'suspended') audioCtx.resume();
+    if (audioCtx.state !== 'running') audioCtx.resume().catch(() => {});
   } catch { audioCtx = null; }
 }
+document.addEventListener('pointerdown', unlockAudio, { passive: true });
 
-function chime() {
-  if (!settings.sound || !audioCtx) return;
-  const now = audioCtx.currentTime;
-  [0, 0.25, 0.5].forEach((offset, i) => {
+// Una campanita: tono base con un par de armónicos que se apagan suave.
+function bell(freq, at, { dur = 1.4, vol = 0.32 } = {}) {
+  const out = audioCtx.createGain();
+  out.gain.setValueAtTime(0.0001, at);
+  out.gain.exponentialRampToValueAtTime(vol, at + 0.008);
+  out.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+  out.connect(audioCtx.destination);
+  [[1, 1], [2.01, 0.28], [3.02, 0.1]].forEach(([mult, level]) => {
     const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
+    const g = audioCtx.createGain();
     osc.type = 'sine';
-    osc.frequency.value = [660, 880, 990][i];
-    gain.gain.setValueAtTime(0.0001, now + offset);
-    gain.gain.exponentialRampToValueAtTime(0.4, now + offset + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + offset + 0.6);
-    osc.connect(gain).connect(audioCtx.destination);
-    osc.start(now + offset);
-    osc.stop(now + offset + 0.65);
+    osc.frequency.value = freq * mult;
+    g.gain.value = level;
+    osc.connect(g).connect(out);
+    osc.start(at);
+    osc.stop(at + dur + 0.05);
   });
 }
 
+// Melodías (notas en Hz y en qué momento suenan).
+const N = { C5: 523.25, E5: 659.25, G5: 783.99, A5: 880, B5: 987.77, C6: 1046.5, D6: 1174.66, E6: 1318.51, G6: 1567.98 };
+const SOUNDS = {
+  // Al empezar: dos notas cortitas hacia arriba.
+  inicio: [[N.E5, 0, 0.7], [N.B5, 0.12, 0.9]],
+  // Fin del enfoque: arpegio alegre, dos veces.
+  finEnfoque: [[N.C6, 0, 1], [N.E6, 0.16, 1], [N.G6, 0.32, 1.6],
+               [N.C6, 1.1, 1], [N.E6, 1.26, 1], [N.G6, 1.42, 2]],
+  // Fin de la pausa: "a trabajar" más suave, hacia abajo y de vuelta arriba.
+  finPausa: [[N.G5, 0, 1], [N.E5, 0.2, 1], [N.C6, 0.45, 1.8]],
+};
+
+function play(name, force = false) {
+  if (!settings.sound && !force) return;
+  unlockAudio(force);
+  if (!audioCtx) return;
+  const go = () => {
+    const t = audioCtx.currentTime + 0.03;
+    SOUNDS[name].forEach(([f, at, dur]) => bell(f, t + at, { dur }));
+  };
+  if (audioCtx.state === 'running') go();
+  else audioCtx.resume().then(go).catch(() => {});
+}
+
 function alertUser(finished, next) {
-  chime();
+  play(finished === 'focus' ? 'finEnfoque' : 'finPausa');
   if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
   const title = finished === 'focus' ? '¡Pomodoro terminado!' : 'Fin de la pausa';
   const body = `Sigue: ${LABELS[next]}`;
@@ -586,6 +618,7 @@ els.reset.addEventListener('click', () => { setMode(state.mode); react('enojado'
 els.skip.addEventListener('click', () => { skip(); react('enojado'); });
 els.settingsBtn.addEventListener('click', openSettings);
 els.notifyBtn.addEventListener('click', requestNotifications);
+$('#testSound').addEventListener('click', (e) => { e.preventDefault(); play('finEnfoque', true); });
 els.clearBtn.addEventListener('click', () => {
   if (!confirm('¿Borrar el historial de hoy?')) return;
   delete history[todayKey()];
