@@ -1,5 +1,8 @@
 'use strict';
 
+// Servidor de notificaciones (carpeta push-server/). Vacío = sin notificaciones con pantalla bloqueada.
+const PUSH_URL = '';
+
 const DEFAULTS = { focus: 25, short: 5, long: 15, every: 4, autoStart: false, sound: true, loud: true, keepAwake: true, buddy: 'ambos' };
 const LABELS = { focus: 'Enfoque', short: 'Pausa corta', long: 'Pausa larga' };
 const RING_LEN = 2 * Math.PI * 100;
@@ -13,7 +16,7 @@ const els = {
   count: $('#statCount'), minutes: $('#statMinutes'), streak: $('#statStreak'), dots: $('#cycleDots'),
   statsBtn: $('#statsBtn'), statCards: $('#statCards'), statsDialog: $('#statsDialog'),
   settings: $('#settings'), settingsBtn: $('#settingsBtn'),
-  notifyBtn: $('#notifyBtn'), clearBtn: $('#clearBtn'), installHint: $('#installHint'),
+  notifyBtn: $('#notifyBtn'), testPushBtn: $('#testPushBtn'), clearBtn: $('#clearBtn'), installHint: $('#installHint'),
   stage: $('#stage'), bubble: $('#bubble'),
 };
 
@@ -103,12 +106,14 @@ function start({ quiet = false } = {}) {
   if (quiet) unlockAudio(); else play('inicio');
   state.endsAt = Date.now() + remainingNow() * 1000;
   persist();
+  schedulePush();
   runTick();
   requestWakeLock();
   render();
 }
 
 function pause() {
+  cancelPush();
   state.remaining = remainingNow();
   state.endsAt = null;
   persist();
@@ -119,6 +124,7 @@ function pause() {
 
 function setMode(mode, autoStart = false) {
   clearInterval(tick);
+  if (isRunning()) cancelPush();
   state.mode = mode;
   state.endsAt = null;
   state.remaining = duration(mode);
@@ -129,7 +135,10 @@ function setMode(mode, autoStart = false) {
 function runTick() {
   clearInterval(tick);
   tick = setInterval(() => {
-    if (remainingNow() <= 0) finish(); else render();
+    const rem = remainingNow();
+    // Con la app a la vista avisa ella misma: se cancela la notificación para no duplicar.
+    if (rem <= 2 && !document.hidden) cancelPush();
+    if (rem <= 0) finish(); else render();
   }, 250);
 }
 
@@ -801,20 +810,108 @@ function alertUser(finished, next) {
   }
 }
 
+/* ---------- Notificaciones con la pantalla bloqueada (Web Push) ---------- */
+
+const deviceId = load('deviceId', null) || (() => { const id = uid() + uid(); save('deviceId', id); return id; })();
+let pushOn = load('pushOn', false);
+// Hay una notificación programada en el servidor (también si la app se reabrió con el tiempo corriendo).
+let pushPending = pushOn && state.endsAt !== null;
+
+const b64urlToBytes = (str) => {
+  const s = atob(str.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((str.length + 3) % 4));
+  return Uint8Array.from(s, (c) => c.charCodeAt(0));
+};
+
+async function pushSubscription() {
+  if (!PUSH_URL || !('serviceWorker' in navigator)) return null;
+  const reg = await navigator.serviceWorker.ready;
+  return reg.pushManager ? reg.pushManager.getSubscription() : null;
+}
+
+function postPush(path, data) {
+  return fetch(`${PUSH_URL}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: deviceId, ...data }),
+    keepalive: true,
+  });
+}
+
+function pushMessage() {
+  const t = currentTask();
+  if (state.mode === 'focus') {
+    const next = (state.done + 1) % settings.every === 0 ? 'long' : 'short';
+    return { title: '🍅 ¡Pomodoro terminado!', body: `Ahora: ${LABELS[next].toLowerCase()} de ${settings[next]} min ☕` };
+  }
+  return { title: '☕ Fin de la pausa', body: `A concentrarse: ${settings.focus} min${t ? ` en "${t.title}"` : ''}` };
+}
+
+async function schedulePush() {
+  if (!pushOn || !state.endsAt) return;
+  try {
+    const sub = await pushSubscription();
+    if (!sub) return;
+    pushPending = true;
+    await postPush('/schedule', { subscription: sub.toJSON(), at: state.endsAt, ...pushMessage() });
+  } catch { /* sin conexión: queda el aviso dentro de la app */ }
+}
+
+function cancelPush() {
+  if (!pushPending) return;
+  pushPending = false;
+  postPush('/cancel', {}).catch(() => {});
+}
+
 async function requestNotifications() {
-  if (!('Notification' in window)) {
-    alert('Este navegador no permite notificaciones. En iPhone, primero instala la app en la pantalla de inicio (iOS 16.4 o superior).');
+  const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+  if (!('Notification' in window) || !('serviceWorker' in navigator)) {
+    alert(standalone
+      ? 'Este iPhone no permite notificaciones de apps web. Hace falta iOS 16.4 o superior.'
+      : 'Para recibir notificaciones, abre Foco desde el ícono de la pantalla de inicio (no desde Safari).');
     return;
   }
   const result = await Notification.requestPermission();
+  if (result !== 'granted') {
+    updateNotifyBtn();
+    if (result === 'denied') alert('Las notificaciones están bloqueadas. Actívalas en Ajustes del iPhone → Notificaciones → Foco.');
+    return;
+  }
+  if (!PUSH_URL) { updateNotifyBtn(); return; }
+  els.notifyBtn.textContent = 'Activando…';
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      const { publicKey } = await fetch(`${PUSH_URL}/vapid`).then((r) => r.json());
+      sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64urlToBytes(publicKey) });
+    }
+    pushOn = true;
+    save('pushOn', true);
+    if (isRunning()) schedulePush();
+  } catch {
+    alert('No se pudieron activar las notificaciones. Revisa tu conexión e inténtalo de nuevo.');
+  }
   updateNotifyBtn();
-  if (result === 'denied') alert('Las notificaciones están bloqueadas. Puedes activarlas en Ajustes del sistema.');
+}
+
+async function testPush() {
+  const sub = await pushSubscription().catch(() => null);
+  if (!sub) { alert('Primero activa las notificaciones.'); return; }
+  els.testPushBtn.textContent = 'Enviando… bloquea el teléfono';
+  // Llega a los 5 segundos: da tiempo de bloquear la pantalla para ver cómo se ve.
+  await postPush('/schedule', {
+    subscription: sub.toJSON(), at: Date.now() + 5000,
+    title: '🍅 Así te avisará Foco', body: '¡Las notificaciones funcionan! 💛',
+  }).catch(() => alert('No se pudo contactar al servidor.'));
+  setTimeout(() => { els.testPushBtn.textContent = 'Probar notificación'; }, 6000);
 }
 
 function updateNotifyBtn() {
   const granted = 'Notification' in window && Notification.permission === 'granted';
-  els.notifyBtn.textContent = granted ? 'Notificaciones activadas ✓' : 'Activar notificaciones';
-  els.notifyBtn.disabled = granted;
+  const ready = granted && (!PUSH_URL || pushOn);
+  els.notifyBtn.textContent = ready ? 'Notificaciones activadas ✓' : 'Activar notificaciones';
+  els.notifyBtn.disabled = ready;
+  els.testPushBtn.hidden = !(ready && PUSH_URL);
 }
 
 /* ---------- Pantalla encendida ---------- */
@@ -863,6 +960,7 @@ els.reset.addEventListener('click', () => { setMode(state.mode); react('enojado'
 els.skip.addEventListener('click', () => { skip(); react('enojado'); });
 els.settingsBtn.addEventListener('click', openSettings);
 els.notifyBtn.addEventListener('click', requestNotifications);
+els.testPushBtn.addEventListener('click', testPush);
 $('#testSound').addEventListener('click', (e) => { e.preventDefault(); play('finEnfoque', true); });
 els.clearBtn.addEventListener('click', () => {
   if (!confirm('¿Borrar el historial de hoy?')) return;

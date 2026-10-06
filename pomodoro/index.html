@@ -203,7 +203,11 @@
       <label class="check"><input type="checkbox" name="sound"> Sonido al empezar y terminar <button type="button" id="testSound" class="link-btn small-link">Probar</button></label>
       <label class="check sub"><input type="checkbox" name="loud"> <span>Sonar aunque el iPhone esté en silencio<br><small>Pausa la música mientras suena</small></span></label>
       <label class="check"><input type="checkbox" name="keepAwake"> Mantener pantalla encendida</label>
-      <button type="button" id="notifyBtn" class="link-btn">Activar notificaciones</button>
+      <div class="notify-row">
+        <button type="button" id="notifyBtn" class="link-btn">Activar notificaciones</button>
+        <button type="button" id="testPushBtn" class="link-btn small-link" hidden>Probar notificación</button>
+      </div>
+      <small class="notify-hint">Te avisa al terminar aunque el teléfono esté bloqueado o estés en otra app.</small>
       <div class="dialog-actions">
         <button type="button" id="clearBtn" class="link-btn danger">Borrar historial de hoy</button>
         <button value="save" class="ctrl primary small">Guardar</button>
